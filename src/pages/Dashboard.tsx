@@ -24,9 +24,10 @@ import {
 } from "@/services/geocodingService";
 import { generatePersonalizedRecommendations, PersonalizedRecommendations } from "@/services/recommendationsService";
 import { searchNearbyPlaces, PlaceResult } from "@/services/placesService";
+import { generateForecast, exportForecastToCSV, exportForecastToJSON, ForecastResult } from "@/services/forecastService";
 import { supabase, UserProfile, UserPreferences } from "@/lib/supabase";
 import RecommendationsPanel from "@/components/RecommendationsPanel";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
@@ -43,6 +44,8 @@ const Dashboard = () => {
   const [nearbyPlaces, setNearbyPlaces] = useState<PlaceResult[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
+  const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
+  const [isForecastLoading, setIsForecastLoading] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -200,6 +203,71 @@ const Dashboard = () => {
     }
   };
 
+  const handleForecast = async () => {
+    if (!selectedLocation) {
+      toast.error("Please select a location");
+      return;
+    }
+
+    if (!startDate) {
+      toast.error("Please select a start date for the forecast");
+      return;
+    }
+
+    setIsForecastLoading(true);
+
+    try {
+      const start = new Date(startDate);
+      const forecast = await generateForecast(
+        selectedLocation.latitude,
+        selectedLocation.longitude,
+        start,
+        12 // Generate 12-month forecast
+      );
+
+      setForecastResult(forecast);
+      toast.success("Forecast generated successfully!");
+    } catch (error) {
+      console.error("Error generating forecast:", error);
+      toast.error("Failed to generate forecast. Please try again.");
+    } finally {
+      setIsForecastLoading(false);
+    }
+  };
+
+  const handleDownloadForecast = (format: "json" | "csv") => {
+    if (!forecastResult || !selectedLocation) {
+      toast.error("No forecast data to export");
+      return;
+    }
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    if (format === "json") {
+      content = exportForecastToJSON(forecastResult, getLocationDisplay(selectedLocation));
+      filename = `weather-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.json`;
+      mimeType = "application/json";
+    } else {
+      content = exportForecastToCSV(forecastResult, getLocationDisplay(selectedLocation));
+      filename = `weather-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.csv`;
+      mimeType = "text/csv";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded forecast ${format.toUpperCase()} file`);
+  };
+
   const handleDownload = (format: "json" | "csv") => {
     if (!weatherStats || !selectedLocation) {
       toast.error("No data to export");
@@ -348,6 +416,25 @@ const Dashboard = () => {
                   )}
                 </Button>
 
+                <Button
+                  onClick={handleForecast}
+                  disabled={isForecastLoading || !selectedLocation}
+                  variant="outline"
+                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  {isForecastLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating Forecast...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate 12-Month Forecast
+                    </>
+                  )}
+                </Button>
+
                 {weatherStats && (
                   <div className="flex gap-2">
                     <Button
@@ -367,6 +454,29 @@ const Dashboard = () => {
                     >
                       <Download className="h-4 w-4 mr-2" />
                       CSV
+                    </Button>
+                  </div>
+                )}
+
+                {forecastResult && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadForecast("json")}
+                      className="flex-1"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Forecast JSON
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadForecast("csv")}
+                      className="flex-1"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Forecast CSV
                     </Button>
                   </div>
                 )}
@@ -534,6 +644,124 @@ const Dashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {forecastResult && (
+              <>
+                <Card className="shadow-md border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      12-Month Weather Forecast
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Avg Temperature</div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {forecastResult.avgTemperature}°C
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Avg Rainfall</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {forecastResult.avgRainfall} mm
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Avg Wind Speed</div>
+                        <div className="text-2xl font-bold text-orange-600">
+                          {forecastResult.avgWindspeed} m/s
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Forecast period: {forecastResult.forecastStartDate} to {forecastResult.forecastEndDate}
+                      <br />
+                      Based on {forecastResult.historicalData.length} historical data points
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-md border-blue-200">
+                  <CardHeader>
+                    <CardTitle>Temperature Forecast (with Confidence Intervals)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={forecastResult.forecastData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }} />
+                        <Tooltip />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="temperatureConfidence"
+                          fill="#fecaca"
+                          stroke="none"
+                          fillOpacity={0.3}
+                          name="Confidence Range"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="temperature"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Predicted Temperature (°C)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-md border-blue-200">
+                  <CardHeader>
+                    <CardTitle>Rainfall & Wind Speed Forecast</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={forecastResult.forecastData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date"
+                          tick={{ fontSize: 12 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="rainfall"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Predicted Rainfall (mm)"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="windspeed"
+                          stroke="#f97316"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Predicted Wind Speed (m/s)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
         </div>
