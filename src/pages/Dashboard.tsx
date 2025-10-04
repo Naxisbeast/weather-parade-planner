@@ -1,290 +1,83 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Download, Search, MapPin, Loader as Loader2, Sparkles } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Download, Heart } from "lucide-react";
+import { weatherData, locations, dates, conditionLabels, WeatherProbabilities } from "@/data/weatherData";
+import ProbabilityChart from "@/components/ProbabilityChart";
+import WeatherSummary from "@/components/WeatherSummary";
+import LocationMap from "@/components/LocationMap";
+import TrendlineChart from "@/components/TrendlineChart";
+import WeatherCard from "@/components/WeatherCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import {
-  fetchNASAWeatherData,
-  processWeatherData,
-  calculateRiskLevel,
-  formatDateForNASA,
-  exportToCSV,
-  exportToJSON,
-  WeatherStats,
-  RiskLevel
-} from "@/services/nasaWeatherService";
-import {
-  searchLocationByName,
-  parseCoordinates,
-  getLocationDisplay,
-  GeoLocation
-} from "@/services/geocodingService";
-import { generatePersonalizedRecommendations, PersonalizedRecommendations } from "@/services/recommendationsService";
-import { searchNearbyPlaces, PlaceResult } from "@/services/placesService";
-import { generateForecast, exportForecastToCSV, exportForecastToJSON, ForecastResult } from "@/services/forecastService";
-import { supabase, UserProfile, UserPreferences } from "@/lib/supabase";
-import RecommendationsPanel from "@/components/RecommendationsPanel";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 const Dashboard = () => {
-  const { isAuthenticated, user } = useAuth();
-  const [locationInput, setLocationInput] = useState("");
-  const [searchResults, setSearchResults] = useState<GeoLocation[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState<GeoLocation | null>(null);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [weatherStats, setWeatherStats] = useState<WeatherStats | null>(null);
-  const [riskLevel, setRiskLevel] = useState<RiskLevel | null>(null);
-  const [recommendations, setRecommendations] = useState<PersonalizedRecommendations | null>(null);
-  const [nearbyPlaces, setNearbyPlaces] = useState<PlaceResult[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
-  const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
-  const [isForecastLoading, setIsForecastLoading] = useState(false);
+  const { addFavorite, isAuthenticated } = useAuth();
+  const [selectedLocation, setSelectedLocation] = useState<string>(locations[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(dates[0]);
+  const [selectedConditions, setSelectedConditions] = useState<Set<keyof WeatherProbabilities>>(
+    new Set(["very_hot", "very_wet"])
+  );
+  const [hasAnalyzed, setHasAnalyzed] = useState(false);
 
-  useEffect(() => {
-    const today = new Date();
-    const tenDaysAgo = new Date(today);
-    tenDaysAgo.setDate(today.getDate() - 10);
-
-    setEndDate(today.toISOString().split('T')[0]);
-    setStartDate(tenDaysAgo.toISOString().split('T')[0]);
-
-    if (isAuthenticated) {
-      loadUserProfile();
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    const delaySearch = setTimeout(async () => {
-      if (locationInput.trim().length < 2) {
-        setSearchResults([]);
-        return;
-      }
-
-      const coords = parseCoordinates(locationInput);
-      if (coords) {
-        setSearchResults([coords]);
-        return;
-      }
-
-      setIsSearching(true);
-      const results = await searchLocationByName(locationInput);
-      setSearchResults(results);
-      setIsSearching(false);
-    }, 500);
-
-    return () => clearTimeout(delaySearch);
-  }, [locationInput]);
-
-  const loadUserProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const { data: preferences } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      setUserProfile(profile);
-      setUserPreferences(preferences);
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-    }
-  };
-
-  const handleLocationSelect = (location: GeoLocation) => {
-    setSelectedLocation(location);
-    setLocationInput(getLocationDisplay(location));
-    setSearchResults([]);
-  };
-
-  const saveWeatherSearch = async (stats: WeatherStats, location: GeoLocation, risk: RiskLevel) => {
-    if (!isAuthenticated || !user) return;
-
-    try {
-      await supabase.from('weather_searches').insert({
-        user_id: user.id,
-        location_name: location.name,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        start_date: startDate,
-        end_date: endDate,
-        avg_temperature: stats.avgTemperature,
-        max_temperature: stats.maxTemperature,
-        min_temperature: stats.minTemperature,
-        avg_rainfall: stats.avgRainfall,
-        max_rainfall: stats.maxRainfall,
-        avg_windspeed: stats.avgWindspeed,
-        max_windspeed: stats.maxWindspeed,
-        risk_level: risk.level
-      });
-    } catch (error) {
-      console.error('Error saving weather search:', error);
-    }
-  };
-
-  const handleAnalyze = async () => {
-    if (!selectedLocation) {
-      toast.error("Please select a location");
-      return;
-    }
-
-    if (!startDate || !endDate) {
-      toast.error("Please select date range");
-      return;
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    if (start > end) {
-      toast.error("Start date must be before end date");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const nasaStartDate = formatDateForNASA(start);
-      const nasaEndDate = formatDateForNASA(end);
-
-      const nasaData = await fetchNASAWeatherData({
-        latitude: selectedLocation.latitude,
-        longitude: selectedLocation.longitude,
-        startDate: nasaStartDate,
-        endDate: nasaEndDate
-      });
-
-      const stats = processWeatherData(nasaData);
-      const risk = calculateRiskLevel(stats);
-
-      setWeatherStats(stats);
-      setRiskLevel(risk);
-
-      if (isAuthenticated) {
-        await saveWeatherSearch(stats, selectedLocation, risk);
-      }
-
-      const personalizedRecs = generatePersonalizedRecommendations(
-        stats,
-        userProfile || undefined,
-        userPreferences || undefined
-      );
-      setRecommendations(personalizedRecs);
-
-      if (userPreferences && userPreferences.preferred_activities.length > 0 && userProfile?.user_type === 'individual') {
-        const places = await searchNearbyPlaces(
-          selectedLocation.latitude,
-          selectedLocation.longitude,
-          userPreferences.preferred_activities[0]
-        );
-        setNearbyPlaces(places);
-      }
-
-      toast.success("Weather data fetched successfully!");
-    } catch (error) {
-      console.error("Error fetching weather data:", error);
-      toast.error("Failed to fetch weather data. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleForecast = async () => {
-    if (!selectedLocation) {
-      toast.error("Please select a location");
-      return;
-    }
-
-    if (!startDate) {
-      toast.error("Please select a start date for the forecast");
-      return;
-    }
-
-    setIsForecastLoading(true);
-
-    try {
-      const start = new Date(startDate);
-      const forecast = await generateForecast(
-        selectedLocation.latitude,
-        selectedLocation.longitude,
-        start,
-        12 // Generate 12-month forecast
-      );
-
-      setForecastResult(forecast);
-      toast.success("Forecast generated successfully!");
-    } catch (error) {
-      console.error("Error generating forecast:", error);
-      toast.error("Failed to generate forecast. Please try again.");
-    } finally {
-      setIsForecastLoading(false);
-    }
-  };
-
-  const handleDownloadForecast = (format: "json" | "csv") => {
-    if (!forecastResult || !selectedLocation) {
-      toast.error("No forecast data to export");
-      return;
-    }
-
-    let content: string;
-    let filename: string;
-    let mimeType: string;
-
-    if (format === "json") {
-      content = exportForecastToJSON(forecastResult, getLocationDisplay(selectedLocation));
-      filename = `weather-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.json`;
-      mimeType = "application/json";
+  const toggleCondition = (condition: keyof WeatherProbabilities) => {
+    const newConditions = new Set(selectedConditions);
+    if (newConditions.has(condition)) {
+      newConditions.delete(condition);
     } else {
-      content = exportForecastToCSV(forecastResult, getLocationDisplay(selectedLocation));
-      filename = `weather-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.csv`;
-      mimeType = "text/csv";
+      newConditions.add(condition);
     }
+    setSelectedConditions(newConditions);
+  };
 
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const handleAnalyze = () => {
+    if (selectedConditions.size === 0) {
+      toast.error("Please select at least one condition to analyze");
+      return;
+    }
+    setHasAnalyzed(true);
+    toast.success("Analysis complete!");
+  };
 
-    toast.success(`Downloaded forecast ${format.toUpperCase()} file`);
+  const handleSaveFavorite = () => {
+    if (!isAuthenticated) {
+      toast.error("Please login to save favorites");
+      return;
+    }
+    addFavorite({
+      location: selectedLocation,
+      date: selectedDate,
+      conditions: Array.from(selectedConditions).map(c => conditionLabels[c])
+    });
+    toast.success("Query saved to favorites!");
   };
 
   const handleDownload = (format: "json" | "csv") => {
-    if (!weatherStats || !selectedLocation) {
-      toast.error("No data to export");
-      return;
-    }
+    const data = weatherData[selectedLocation][selectedDate];
+    const filteredData = Object.entries(data)
+      .filter(([key]) => selectedConditions.has(key as keyof WeatherProbabilities))
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: Math.round(value.probability * 100) }), {});
 
     let content: string;
     let filename: string;
     let mimeType: string;
 
     if (format === "json") {
-      content = exportToJSON(weatherStats, getLocationDisplay(selectedLocation));
-      filename = `weather-data-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.json`;
+      content = JSON.stringify({
+        location: selectedLocation,
+        date: selectedDate,
+        probabilities: filteredData
+      }, null, 2);
+      filename = `weather-analysis-${selectedLocation.replace(/\s+/g, "-")}-${selectedDate.replace(/\s+/g, "-")}.json`;
       mimeType = "application/json";
     } else {
-      content = exportToCSV(weatherStats, getLocationDisplay(selectedLocation));
-      filename = `weather-data-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.csv`;
+      const headers = "Location,Date," + Object.keys(filteredData).map(k => conditionLabels[k as keyof WeatherProbabilities]).join(",");
+      const values = `${selectedLocation},${selectedDate},` + Object.values(filteredData).join(",");
+      content = headers + "\n" + values;
+      filename = `weather-analysis-${selectedLocation.replace(/\s+/g, "-")}-${selectedDate.replace(/\s+/g, "-")}.csv`;
       mimeType = "text/csv";
     }
 
@@ -301,337 +94,163 @@ const Dashboard = () => {
     toast.success(`Downloaded ${format.toUpperCase()} file`);
   };
 
-  const getRiskColor = (level: string) => {
-    switch (level) {
-      case 'High': return 'text-red-600 bg-red-50 border-red-200';
-      case 'Moderate': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'Low': return 'text-green-600 bg-green-50 border-green-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
+  const currentData = weatherData[selectedLocation][selectedDate];
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <Navigation />
-
+      
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent mb-2">
-            NASA Weather Analysis Dashboard
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+            Weather Analysis Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Real-time weather data with personalized recommendations
+            Select location, date, and conditions to analyze weather probabilities
           </p>
-          {!isAuthenticated && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <Sparkles className="inline h-4 w-4 mr-1" />
-                Sign in and complete your profile to get personalized clothing recommendations, activity suggestions, and safety tips!
-              </p>
-            </div>
-          )}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
+          {/* Input Panel */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Search Location</CardTitle>
+                <CardTitle>Analysis Parameters</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    City name or Coordinates (lat, lon)
-                  </label>
-                  <div className="relative">
-                    <Input
-                      placeholder="e.g., London or -33.9249, 18.4241"
-                      value={locationInput}
-                      onChange={(e) => setLocationInput(e.target.value)}
-                      className="pr-10"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {isSearching ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <Search className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-
-                  {searchResults.length > 0 && (
-                    <div className="border rounded-md bg-background shadow-lg max-h-60 overflow-y-auto">
-                      {searchResults.map((result, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleLocationSelect(result)}
-                          className="w-full text-left px-4 py-2 hover:bg-accent transition-colors flex items-center gap-2"
-                        >
-                          <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm">{getLocationDisplay(result)}</span>
-                        </button>
+                  <label className="text-sm font-medium">Location</label>
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map(loc => (
+                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
                       ))}
-                    </div>
-                  )}
-
-                  {selectedLocation && (
-                    <div className="text-sm text-muted-foreground">
-                      Selected: {getLocationDisplay(selectedLocation)}
-                    </div>
-                  )}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Start Date</label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    max={endDate || undefined}
-                  />
+                  <label className="text-sm font-medium">Date</label>
+                  <Select value={selectedDate} onValueChange={setSelectedDate}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dates.map(date => (
+                        <SelectItem key={date} value={date}>{date}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">End Date</label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    min={startDate || undefined}
-                  />
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">Conditions to Analyze</label>
+                  {Object.entries(conditionLabels).map(([key, label]) => (
+                    <div key={key} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={key}
+                        checked={selectedConditions.has(key as keyof WeatherProbabilities)}
+                        onCheckedChange={() => toggleCondition(key as keyof WeatherProbabilities)}
+                      />
+                      <label
+                        htmlFor={key}
+                        className="text-sm cursor-pointer hover:text-primary transition-colors"
+                      >
+                        {label}
+                      </label>
+                    </div>
+                  ))}
                 </div>
 
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={isLoading || !selectedLocation}
-                  className="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:opacity-90 transition-opacity"
+                <Button 
+                  onClick={handleAnalyze} 
+                  className="w-full bg-gradient-sky hover:opacity-90 transition-opacity"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Fetching Data...
-                    </>
-                  ) : (
-                    "Analyze Weather"
-                  )}
+                  Analyze Weather
                 </Button>
 
-                <Button
-                  onClick={handleForecast}
-                  disabled={isForecastLoading || !selectedLocation}
-                  variant="outline"
-                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
-                >
-                  {isForecastLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Forecast...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate 12-Month Forecast
-                    </>
-                  )}
-                </Button>
-
-                {weatherStats && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownload("json")}
-                      className="flex-1"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      JSON
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownload("csv")}
-                      className="flex-1"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      CSV
-                    </Button>
-                  </div>
-                )}
-
-                {forecastResult && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadForecast("json")}
-                      className="flex-1"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Forecast JSON
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadForecast("csv")}
-                      className="flex-1"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Forecast CSV
-                    </Button>
-                  </div>
+                {hasAnalyzed && (
+                  <Button 
+                    onClick={handleSaveFavorite} 
+                    variant="outline"
+                    className="w-full gap-2"
+                  >
+                    <Heart className="h-4 w-4" />
+                    Save to Favorites
+                  </Button>
                 )}
               </CardContent>
             </Card>
+
+            <LocationMap location={selectedLocation} />
           </div>
 
+          {/* Output Panel */}
           <div className="lg:col-span-2 space-y-6">
-            {weatherStats && riskLevel ? (
+            {hasAnalyzed ? (
               <>
-                <Card className={`shadow-md border-2 ${getRiskColor(riskLevel.level)}`}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>Risk Assessment</span>
-                      <span className="text-2xl font-bold">{riskLevel.level}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {riskLevel.reasons.map((reason, idx) => (
-                        <li key={idx} className="text-sm flex items-start gap-2">
-                          <span className="mt-1">•</span>
-                          <span>{reason}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="shadow-md">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Temperature</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgTemperature}°C</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Max:</span>
-                          <span className="font-semibold text-red-600">{weatherStats.maxTemperature}°C</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Min:</span>
-                          <span className="font-semibold text-blue-600">{weatherStats.minTemperature}°C</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="shadow-md">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Rainfall</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgRainfall} mm</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Max:</span>
-                          <span className="font-semibold text-blue-600">{weatherStats.maxRainfall} mm</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total:</span>
-                          <span className="font-semibold">{weatherStats.totalRainfall} mm</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="shadow-md">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Wind Speed</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgWindspeed} m/s</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Max:</span>
-                          <span className="font-semibold text-orange-600">{weatherStats.maxWindspeed} m/s</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Array.from(selectedConditions).map((condition) => (
+                    <WeatherCard
+                      key={condition}
+                      condition={condition}
+                      data={currentData[condition]}
+                    />
+                  ))}
                 </div>
 
-                {recommendations && (
-                  <RecommendationsPanel
-                    recommendations={recommendations}
-                    nearbyPlaces={nearbyPlaces}
-                    isIndividual={userProfile?.user_type === 'individual'}
-                  />
-                )}
-
                 <Card className="shadow-md">
-                  <CardHeader>
-                    <CardTitle>Temperature Trends</CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Probability Chart</CardTitle>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload("json")}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        JSON
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload("csv")}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        CSV
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={weatherStats.dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="temperature"
-                          stroke="#ef4444"
-                          strokeWidth={2}
-                          name="Temperature (°C)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <ProbabilityChart 
+                      data={currentData} 
+                      selectedConditions={selectedConditions}
+                    />
                   </CardContent>
                 </Card>
 
                 <Card className="shadow-md">
                   <CardHeader>
-                    <CardTitle>Rainfall & Wind Speed</CardTitle>
+                    <CardTitle>Historical Trends (Last 10 Years)</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={weatherStats.dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="rainfall"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          name="Rainfall (mm)"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="windspeed"
-                          stroke="#f97316"
-                          strokeWidth={2}
-                          name="Wind Speed (m/s)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <TrendlineChart 
+                      location={selectedLocation}
+                      date={selectedDate}
+                      selectedConditions={selectedConditions}
+                    />
                   </CardContent>
                 </Card>
+
+                <WeatherSummary
+                  location={selectedLocation}
+                  date={selectedDate}
+                  data={currentData}
+                  selectedConditions={selectedConditions}
+                />
               </>
             ) : (
               <Card className="shadow-md">
@@ -639,129 +258,11 @@ const Dashboard = () => {
                   <div className="text-center text-muted-foreground space-y-2">
                     <p className="text-lg font-medium">Ready to analyze</p>
                     <p className="text-sm">
-                      Select a location and date range, then click "Analyze Weather"
+                      Select your parameters and click "Analyze Weather" to view results
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {forecastResult && (
-              <>
-                <Card className="shadow-md border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-blue-600" />
-                      12-Month Weather Forecast
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">Avg Temperature</div>
-                        <div className="text-2xl font-bold text-red-600">
-                          {forecastResult.avgTemperature}°C
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">Avg Rainfall</div>
-                        <div className="text-2xl font-bold text-blue-600">
-                          {forecastResult.avgRainfall} mm
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">Avg Wind Speed</div>
-                        <div className="text-2xl font-bold text-orange-600">
-                          {forecastResult.avgWindspeed} m/s
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Forecast period: {forecastResult.forecastStartDate} to {forecastResult.forecastEndDate}
-                      <br />
-                      Based on {forecastResult.historicalData.length} historical data points
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-md border-blue-200">
-                  <CardHeader>
-                    <CardTitle>Temperature Forecast (with Confidence Intervals)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={forecastResult.forecastData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 12 }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                        />
-                        <YAxis label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }} />
-                        <Tooltip />
-                        <Legend />
-                        <Area
-                          type="monotone"
-                          dataKey="temperatureConfidence"
-                          fill="#fecaca"
-                          stroke="none"
-                          fillOpacity={0.3}
-                          name="Confidence Range"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="temperature"
-                          stroke="#ef4444"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Predicted Temperature (°C)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-md border-blue-200">
-                  <CardHeader>
-                    <CardTitle>Rainfall & Wind Speed Forecast</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={forecastResult.forecastData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date"
-                          tick={{ fontSize: 12 }}
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                        />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="rainfall"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Predicted Rainfall (mm)"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="windspeed"
-                          stroke="#f97316"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Predicted Wind Speed (m/s)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </>
             )}
           </div>
         </div>
