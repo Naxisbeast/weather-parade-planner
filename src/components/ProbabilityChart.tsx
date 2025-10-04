@@ -19,7 +19,7 @@ const ProbabilityChart = ({ data, selectedConditions }: ProbabilityChartProps) =
     .filter(([key]) => selectedConditions.has(key as keyof WeatherProbabilities))
     .map(([key, value]) => ({
       condition: conditionLabels[key as keyof WeatherProbabilities],
-      probability: Math.round(value * 100),
+      probability: Math.round(value.probability * 100),
       key: key as keyof WeatherProbabilities
     }));
 

@@ -17,7 +17,7 @@ const WeatherSummary = ({ location, date, data, selectedConditions }: WeatherSum
   const conditions = Array.from(selectedConditions)
     .map(key => ({
       label: conditionLabels[key],
-      probability: Math.round(data[key] * 100)
+      probability: Math.round(data[key].probability * 100)
     }))
     .sort((a, b) => b.probability - a.probability);
 

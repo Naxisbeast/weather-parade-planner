@@ -4,14 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download } from "lucide-react";
+import { Download, Heart } from "lucide-react";
 import { weatherData, locations, dates, conditionLabels, WeatherProbabilities } from "@/data/weatherData";
 import ProbabilityChart from "@/components/ProbabilityChart";
 import WeatherSummary from "@/components/WeatherSummary";
 import LocationMap from "@/components/LocationMap";
+import TrendlineChart from "@/components/TrendlineChart";
+import WeatherCard from "@/components/WeatherCard";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const Dashboard = () => {
+  const { addFavorite, isAuthenticated } = useAuth();
   const [selectedLocation, setSelectedLocation] = useState<string>(locations[0]);
   const [selectedDate, setSelectedDate] = useState<string>(dates[0]);
   const [selectedConditions, setSelectedConditions] = useState<Set<keyof WeatherProbabilities>>(
@@ -38,11 +42,24 @@ const Dashboard = () => {
     toast.success("Analysis complete!");
   };
 
+  const handleSaveFavorite = () => {
+    if (!isAuthenticated) {
+      toast.error("Please login to save favorites");
+      return;
+    }
+    addFavorite({
+      location: selectedLocation,
+      date: selectedDate,
+      conditions: Array.from(selectedConditions).map(c => conditionLabels[c])
+    });
+    toast.success("Query saved to favorites!");
+  };
+
   const handleDownload = (format: "json" | "csv") => {
     const data = weatherData[selectedLocation][selectedDate];
     const filteredData = Object.entries(data)
       .filter(([key]) => selectedConditions.has(key as keyof WeatherProbabilities))
-      .reduce((acc, [key, value]) => ({ ...acc, [key]: Math.round(value * 100) }), {});
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: Math.round(value.probability * 100) }), {});
 
     let content: string;
     let filename: string;
@@ -154,6 +171,17 @@ const Dashboard = () => {
                 >
                   Analyze Weather
                 </Button>
+
+                {hasAnalyzed && (
+                  <Button 
+                    onClick={handleSaveFavorite} 
+                    variant="outline"
+                    className="w-full gap-2"
+                  >
+                    <Heart className="h-4 w-4" />
+                    Save to Favorites
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
@@ -164,9 +192,19 @@ const Dashboard = () => {
           <div className="lg:col-span-2 space-y-6">
             {hasAnalyzed ? (
               <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Array.from(selectedConditions).map((condition) => (
+                    <WeatherCard
+                      key={condition}
+                      condition={condition}
+                      data={currentData[condition]}
+                    />
+                  ))}
+                </div>
+
                 <Card className="shadow-md">
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Probability Analysis</CardTitle>
+                    <CardTitle>Probability Chart</CardTitle>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -189,6 +227,19 @@ const Dashboard = () => {
                   <CardContent>
                     <ProbabilityChart 
                       data={currentData} 
+                      selectedConditions={selectedConditions}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-md">
+                  <CardHeader>
+                    <CardTitle>Historical Trends (Last 10 Years)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TrendlineChart 
+                      location={selectedLocation}
+                      date={selectedDate}
                       selectedConditions={selectedConditions}
                     />
                   </CardContent>
