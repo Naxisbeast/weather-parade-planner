@@ -11,8 +11,8 @@ const Navigation = () => {
   const { theme, toggleTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     toast.success("Logged out successfully");
   };
 
@@ -79,7 +79,7 @@ const Navigation = () => {
                   <Link to="/profile">
                     <Button variant="ghost" size="sm" className="gap-2">
                       <UserIcon className="h-4 w-4" />
-                      {user?.username}
+                      Profile
                     </Button>
                   </Link>
                   <Button
