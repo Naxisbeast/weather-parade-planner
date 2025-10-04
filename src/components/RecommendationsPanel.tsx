@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shirt, Activity, AlertTriangle, Briefcase, MapPin } from "lucide-react";
+import { Shirt, Activity, TriangleAlert as AlertTriangle, Briefcase, MapPin } from "lucide-react";
 import { PersonalizedRecommendations } from "@/services/recommendationsService";
 import { PlaceResult } from "@/services/placesService";
 
