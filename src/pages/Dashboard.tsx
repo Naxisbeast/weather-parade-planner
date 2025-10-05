@@ -25,6 +25,14 @@ import {
 import { generatePersonalizedRecommendations, PersonalizedRecommendations } from "@/services/recommendationsService";
 import { searchNearbyPlaces, PlaceResult } from "@/services/placesService";
 import { generateForecast, exportForecastToCSV, exportForecastToJSON, ForecastResult } from "@/services/forecastService";
+import {
+  callFastAPIForecast,
+  checkFastAPIHealth,
+  formatDateForFastAPI,
+  exportFastAPIForecastToCSV,
+  exportFastAPIForecastToJSON,
+  FastAPIForecastResponse
+} from "@/services/fastapiForecastService";
 import { supabase, UserProfile, UserPreferences } from "@/lib/supabase";
 import RecommendationsPanel from "@/components/RecommendationsPanel";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
@@ -46,6 +54,9 @@ const Dashboard = () => {
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
   const [isForecastLoading, setIsForecastLoading] = useState(false);
+  const [fastapiForecast, setFastapiForecast] = useState<FastAPIForecastResponse | null>(null);
+  const [isFastapiLoading, setIsFastapiLoading] = useState(false);
+  const [fastapiServiceAvailable, setFastapiServiceAvailable] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -58,6 +69,9 @@ const Dashboard = () => {
     if (isAuthenticated) {
       loadUserProfile();
     }
+
+    // Check if FastAPI service is available
+    checkFastAPIHealth().then(setFastapiServiceAvailable);
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -235,6 +249,42 @@ const Dashboard = () => {
     }
   };
 
+  const handleFastAPIForecast = async () => {
+    if (!selectedLocation) {
+      toast.error("Please select a location");
+      return;
+    }
+
+    if (!startDate || !endDate) {
+      toast.error("Please select date range");
+      return;
+    }
+
+    setIsFastapiLoading(true);
+    setFastapiForecast(null);
+
+    try {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      const response = await callFastAPIForecast({
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        start_date: formatDateForFastAPI(start),
+        end_date: formatDateForFastAPI(end),
+        forecast_months: 12
+      });
+
+      setFastapiForecast(response);
+      toast.success(`AI Forecast generated using ${response.model_used}!`);
+    } catch (error) {
+      console.error("Error calling FastAPI forecast:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate AI forecast");
+    } finally {
+      setIsFastapiLoading(false);
+    }
+  };
+
   const handleDownloadForecast = (format: "json" | "csv") => {
     if (!forecastResult || !selectedLocation) {
       toast.error("No forecast data to export");
@@ -266,6 +316,39 @@ const Dashboard = () => {
     URL.revokeObjectURL(url);
 
     toast.success(`Downloaded forecast ${format.toUpperCase()} file`);
+  };
+
+  const handleDownloadFastAPIForecast = (format: "json" | "csv") => {
+    if (!fastapiForecast || !selectedLocation) {
+      toast.error("No AI forecast data to export");
+      return;
+    }
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    if (format === "json") {
+      content = exportFastAPIForecastToJSON(fastapiForecast, getLocationDisplay(selectedLocation));
+      filename = `ai-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.json`;
+      mimeType = "application/json";
+    } else {
+      content = exportFastAPIForecastToCSV(fastapiForecast, getLocationDisplay(selectedLocation));
+      filename = `ai-forecast-${selectedLocation.name.replace(/\s+/g, "-")}-${startDate}.csv`;
+      mimeType = "text/csv";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Downloaded AI forecast ${format.toUpperCase()} file`);
   };
 
   const handleDownload = (format: "json" | "csv") => {
@@ -435,6 +518,30 @@ const Dashboard = () => {
                   )}
                 </Button>
 
+                <Button
+                  onClick={handleFastAPIForecast}
+                  disabled={isFastapiLoading || !selectedLocation || !fastapiServiceAvailable}
+                  variant="default"
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-90"
+                >
+                  {isFastapiLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Running AI Forecast...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {fastapiServiceAvailable ? 'Run AI Forecast (Prophet/ARIMA)' : 'AI Service Offline'}
+                    </>
+                  )}
+                </Button>
+                {!fastapiServiceAvailable && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Start FastAPI service on port 8000 to enable AI forecasting
+                  </p>
+                )}
+
                 {weatherStats && (
                   <div className="flex gap-2">
                     <Button
@@ -477,6 +584,29 @@ const Dashboard = () => {
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Forecast CSV
+                    </Button>
+                  </div>
+                )}
+
+                {fastapiForecast && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadFastAPIForecast("json")}
+                      className="flex-1 border-purple-600 text-purple-600"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      AI JSON
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadFastAPIForecast("csv")}
+                      className="flex-1 border-purple-600 text-purple-600"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      AI CSV
                     </Button>
                   </div>
                 )}
@@ -759,6 +889,162 @@ const Dashboard = () => {
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {fastapiForecast && (
+              <>
+                <Card className="shadow-md border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-purple-600" />
+                      AI Weather Forecast ({fastapiForecast.model_used})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Historical Avg</div>
+                        <div className="text-xl font-bold">
+                          {fastapiForecast.summary_stats.historical_avg_temp.toFixed(1)}°C
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Forecast Avg</div>
+                        <div className="text-xl font-bold text-purple-600">
+                          {fastapiForecast.summary_stats.forecast_avg_temp.toFixed(1)}°C
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-sm text-muted-foreground">Max Temp</div>
+                        <div className="text-xl font-bold text-red-600">
+                          {fastapiForecast.summary_stats.forecast_max_temp.toFixed(1)}°C
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground border-t pt-3">
+                      Historical: {new Date(fastapiForecast.historical_period.start).toLocaleDateString()} - {new Date(fastapiForecast.historical_period.end).toLocaleDateString()}
+                      <br />
+                      Forecast: {new Date(fastapiForecast.forecast_period.start).toLocaleDateString()} - {new Date(fastapiForecast.forecast_period.end).toLocaleDateString()}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {fastapiForecast.recommendations.length > 0 && (
+                  <Card className="shadow-md border-purple-200">
+                    <CardHeader>
+                      <CardTitle>AI-Generated Recommendations</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {fastapiForecast.recommendations.map((rec, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <span className="mt-0.5">•</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card className="shadow-md border-purple-200">
+                  <CardHeader>
+                    <CardTitle>Temperature Forecast with Confidence Bands</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={350}>
+                      <AreaChart data={fastapiForecast.forecasts.map(f => ({
+                        date: new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                        temp: f.temperature,
+                        lower: f.temperature_lower || f.temperature,
+                        upper: f.temperature_upper || f.temperature
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 11 }}
+                          interval={Math.floor(fastapiForecast.forecasts.length / 12)}
+                        />
+                        <YAxis label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }} />
+                        <Tooltip />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="upper"
+                          fill="#c084fc"
+                          stroke="none"
+                          fillOpacity={0.2}
+                          name="Upper Bound"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="lower"
+                          fill="#ffffff"
+                          stroke="none"
+                          fillOpacity={1}
+                          name="Lower Bound"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="temp"
+                          stroke="#9333ea"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Temperature (°C)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-md border-purple-200">
+                  <CardHeader>
+                    <CardTitle>Statistics Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-muted-foreground">Historical Period</h4>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span>Avg Temp:</span>
+                            <span className="font-semibold">{fastapiForecast.summary_stats.historical_avg_temp.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Max Temp:</span>
+                            <span className="font-semibold">{fastapiForecast.summary_stats.historical_max_temp.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Min Temp:</span>
+                            <span className="font-semibold">{fastapiForecast.summary_stats.historical_min_temp.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Avg Rainfall:</span>
+                            <span className="font-semibold">{fastapiForecast.summary_stats.historical_avg_rainfall.toFixed(2)} mm</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-muted-foreground">Forecast Period</h4>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span>Avg Temp:</span>
+                            <span className="font-semibold text-purple-600">{fastapiForecast.summary_stats.forecast_avg_temp.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Max Temp:</span>
+                            <span className="font-semibold text-purple-600">{fastapiForecast.summary_stats.forecast_max_temp.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Min Temp:</span>
+                            <span className="font-semibold text-purple-600">{fastapiForecast.summary_stats.forecast_min_temp.toFixed(1)}°C</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </>
