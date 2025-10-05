@@ -35,7 +35,7 @@ import {
 } from "@/services/fastapiForecastService";
 import { supabase, UserProfile, UserPreferences } from "@/lib/supabase";
 import RecommendationsPanel from "@/components/RecommendationsPanel";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, TooltipProps } from "recharts";
 
 const Dashboard = () => {
   const { isAuthenticated, user } = useAuth();
@@ -279,7 +279,14 @@ const Dashboard = () => {
       toast.success(`AI Forecast generated using ${response.model_used}!`);
     } catch (error) {
       console.error("Error calling FastAPI forecast:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate AI forecast");
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate AI forecast";
+      
+      if (errorMessage.includes("Cannot connect to forecast service")) {
+        toast.error("FastAPI service is offline. Please start the service on port 8000.");
+        setFastapiServiceAvailable(false);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsFastapiLoading(false);
     }
@@ -617,7 +624,7 @@ const Dashboard = () => {
           <div className="lg:col-span-2 space-y-6">
             {weatherStats && riskLevel ? (
               <>
-                <Card className={`shadow-md border-2 ${getRiskColor(riskLevel.level)}`}>
+                <Card className={`shadow-lg rounded-2xl border-2 ${getRiskColor(riskLevel.level)} hover:shadow-xl transition-shadow`}>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       <span>Risk Assessment</span>
@@ -627,25 +634,31 @@ const Dashboard = () => {
                   <CardContent>
                     <ul className="space-y-2">
                       {riskLevel.reasons.map((reason, idx) => (
-                        <li key={idx} className="text-sm flex items-start gap-2">
-                          <span className="mt-1">•</span>
+                        <li key={idx} className="text-sm flex items-start gap-2 p-2 bg-white/50 backdrop-blur-sm rounded-lg">
+                          <span className="mt-1 font-bold">•</span>
                           <span>{reason}</span>
                         </li>
                       ))}
                     </ul>
+                    <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
+                      🕐 Last Updated: {new Date().toLocaleString()}
+                    </div>
                   </CardContent>
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="shadow-md">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-red-50 to-orange-50 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Temperature</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="text-2xl">🌡️</span>
+                        Temperature
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgTemperature}°C</span>
+                          <span className="font-bold text-lg">{weatherStats.avgTemperature}°C</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Max:</span>
@@ -659,15 +672,18 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="shadow-md">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-blue-50 to-cyan-50 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Rainfall</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="text-2xl">💧</span>
+                        Rainfall
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgRainfall} mm</span>
+                          <span className="font-bold text-lg">{weatherStats.avgRainfall} mm</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Max:</span>
@@ -681,15 +697,18 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="shadow-md">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-orange-50 to-amber-50 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Wind Speed</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span className="text-2xl">💨</span>
+                        Wind Speed
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Average:</span>
-                          <span className="font-semibold">{weatherStats.avgWindspeed} m/s</span>
+                          <span className="font-bold text-lg">{weatherStats.avgWindspeed} m/s</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Max:</span>
@@ -708,61 +727,132 @@ const Dashboard = () => {
                   />
                 )}
 
-                <Card className="shadow-md">
+                <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-red-50/50 to-orange-50/50 hover:shadow-xl transition-shadow">
                   <CardHeader>
-                    <CardTitle>Temperature Trends</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white text-sm">🌡️</div>
+                      Temperature Trends
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={weatherStats.dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
+                      <AreaChart data={weatherStats.dailyData}>
+                        <defs>
+                          <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          stroke="#6b7280"
+                        />
+                        <YAxis 
+                          label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }}
+                          stroke="#6b7280"
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Legend />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="temperature"
                           stroke="#ef4444"
-                          strokeWidth={2}
+                          strokeWidth={3}
+                          fill="url(#tempGradient)"
                           name="Temperature (°C)"
                         />
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-md">
+                <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-blue-50/50 to-cyan-50/50 hover:shadow-xl transition-shadow">
                   <CardHeader>
-                    <CardTitle>Rainfall & Wind Speed</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm">💧</div>
+                      Rainfall & Wind Speed
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={weatherStats.dailyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
+                      <AreaChart data={weatherStats.dailyData}>
+                        <defs>
+                          <linearGradient id="rainGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                          </linearGradient>
+                          <linearGradient id="windGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#f97316" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 12 }}
+                          stroke="#6b7280"
+                        />
+                        <YAxis stroke="#6b7280" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Legend />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="rainfall"
                           stroke="#3b82f6"
-                          strokeWidth={2}
+                          strokeWidth={3}
+                          fill="url(#rainGradient)"
                           name="Rainfall (mm)"
                         />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="windspeed"
                           stroke="#f97316"
-                          strokeWidth={2}
+                          strokeWidth={3}
+                          fill="url(#windGradient)"
                           name="Wind Speed (m/s)"
                         />
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
               </>
+            ) : isLoading ? (
+              <div className="space-y-6">
+                <Card className="shadow-md">
+                  <CardContent className="py-8">
+                    <div className="space-y-4 animate-pulse">
+                      <div className="h-4 bg-muted rounded w-1/3"></div>
+                      <div className="h-8 bg-muted rounded w-1/2"></div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="h-16 bg-muted rounded"></div>
+                        <div className="h-16 bg-muted rounded"></div>
+                        <div className="h-16 bg-muted rounded"></div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-md">
+                  <CardContent className="py-8">
+                    <div className="h-64 bg-muted rounded animate-pulse"></div>
+                  </CardContent>
+                </Card>
+              </div>
             ) : (
               <Card className="shadow-md">
                 <CardContent className="py-20">
@@ -814,38 +904,58 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-md border-blue-200">
+                <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-blue-50/50 to-indigo-50/50 hover:shadow-xl transition-shadow">
                   <CardHeader>
-                    <CardTitle>Temperature Forecast (with Confidence Intervals)</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      Temperature Forecast (with Confidence Band)
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={forecastResult.forecastData}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                        <defs>
+                          <linearGradient id="forecastTempGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis 
                           dataKey="date" 
                           tick={{ fontSize: 12 }}
                           angle={-45}
                           textAnchor="end"
                           height={80}
+                          stroke="#6b7280"
                         />
-                        <YAxis label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }} />
-                        <Tooltip />
+                        <YAxis 
+                          label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }}
+                          stroke="#6b7280"
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Legend />
                         <Area
                           type="monotone"
                           dataKey="temperatureConfidence"
-                          fill="#fecaca"
+                          fill="#93c5fd"
                           stroke="none"
                           fillOpacity={0.3}
-                          name="Confidence Range"
+                          name="Confidence Band"
                         />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="temperature"
-                          stroke="#ef4444"
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
+                          stroke="#3b82f6"
+                          strokeWidth={3}
+                          fill="url(#forecastTempGradient)"
                           name="Predicted Temperature (°C)"
                         />
                       </AreaChart>
@@ -896,7 +1006,7 @@ const Dashboard = () => {
 
             {fastapiForecast && (
               <>
-                <Card className="shadow-md border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                <Card className="shadow-lg rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 hover:shadow-xl transition-shadow">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-purple-600" />
@@ -905,43 +1015,46 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <div className="space-y-1">
+                      <div className="p-3 rounded-xl bg-white/70 backdrop-blur-sm shadow-sm">
                         <div className="text-sm text-muted-foreground">Historical Avg</div>
-                        <div className="text-xl font-bold">
+                        <div className="text-2xl font-bold">
                           {fastapiForecast.summary_stats.historical_avg_temp.toFixed(1)}°C
                         </div>
                       </div>
-                      <div className="space-y-1">
+                      <div className="p-3 rounded-xl bg-white/70 backdrop-blur-sm shadow-sm">
                         <div className="text-sm text-muted-foreground">Forecast Avg</div>
-                        <div className="text-xl font-bold text-purple-600">
+                        <div className="text-2xl font-bold text-purple-600">
                           {fastapiForecast.summary_stats.forecast_avg_temp.toFixed(1)}°C
                         </div>
                       </div>
-                      <div className="space-y-1">
+                      <div className="p-3 rounded-xl bg-white/70 backdrop-blur-sm shadow-sm">
                         <div className="text-sm text-muted-foreground">Max Temp</div>
-                        <div className="text-xl font-bold text-red-600">
+                        <div className="text-2xl font-bold text-red-600">
                           {fastapiForecast.summary_stats.forecast_max_temp.toFixed(1)}°C
                         </div>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground border-t pt-3">
-                      Historical: {new Date(fastapiForecast.historical_period.start).toLocaleDateString()} - {new Date(fastapiForecast.historical_period.end).toLocaleDateString()}
-                      <br />
-                      Forecast: {new Date(fastapiForecast.forecast_period.start).toLocaleDateString()} - {new Date(fastapiForecast.forecast_period.end).toLocaleDateString()}
+                    <div className="text-xs text-muted-foreground border-t pt-3 space-y-1">
+                      <div>📅 Historical: {new Date(fastapiForecast.historical_period.start).toLocaleDateString()} - {new Date(fastapiForecast.historical_period.end).toLocaleDateString()}</div>
+                      <div>🔮 Forecast: {new Date(fastapiForecast.forecast_period.start).toLocaleDateString()} - {new Date(fastapiForecast.forecast_period.end).toLocaleDateString()}</div>
+                      <div>🕐 Last Updated: {new Date().toLocaleString()}</div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {fastapiForecast.recommendations.length > 0 && (
-                  <Card className="shadow-md border-purple-200">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-indigo-50 to-purple-50 hover:shadow-xl transition-shadow">
                     <CardHeader>
-                      <CardTitle>AI-Generated Recommendations</CardTitle>
+                      <CardTitle className="flex items-center gap-2">
+                        <span className="text-2xl">💡</span>
+                        AI-Generated Recommendations
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ul className="space-y-2">
+                      <ul className="space-y-3">
                         {fastapiForecast.recommendations.map((rec, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-sm">
-                            <span className="mt-0.5">•</span>
+                          <li key={idx} className="flex items-start gap-3 text-sm p-3 bg-white/70 backdrop-blur-sm rounded-lg shadow-sm">
+                            <span className="mt-0.5 text-purple-600 font-bold">•</span>
                             <span>{rec}</span>
                           </li>
                         ))}
@@ -950,9 +1063,12 @@ const Dashboard = () => {
                   </Card>
                 )}
 
-                <Card className="shadow-md border-purple-200">
+                <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-purple-50 to-indigo-50 hover:shadow-xl transition-shadow">
                   <CardHeader>
-                    <CardTitle>Temperature Forecast with Confidence Bands</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="text-2xl">📈</span>
+                      Temperature Forecast with Confidence Bands
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={350}>
@@ -962,21 +1078,38 @@ const Dashboard = () => {
                         lower: f.temperature_lower || f.temperature,
                         upper: f.temperature_upper || f.temperature
                       }))}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                        <defs>
+                          <linearGradient id="aiForecastGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#9333ea" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#9333ea" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis 
                           dataKey="date" 
                           tick={{ fontSize: 11 }}
                           interval={Math.floor(fastapiForecast.forecasts.length / 12)}
+                          stroke="#6b7280"
                         />
-                        <YAxis label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }} />
-                        <Tooltip />
+                        <YAxis 
+                          label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }}
+                          stroke="#6b7280"
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
                         <Legend />
                         <Area
                           type="monotone"
                           dataKey="upper"
                           fill="#c084fc"
                           stroke="none"
-                          fillOpacity={0.2}
+                          fillOpacity={0.3}
                           name="Upper Bound"
                         />
                         <Area
@@ -987,12 +1120,12 @@ const Dashboard = () => {
                           fillOpacity={1}
                           name="Lower Bound"
                         />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="temp"
                           stroke="#9333ea"
-                          strokeWidth={2}
-                          dot={false}
+                          strokeWidth={3}
+                          fill="url(#aiForecastGradient)"
                           name="Temperature (°C)"
                         />
                       </AreaChart>

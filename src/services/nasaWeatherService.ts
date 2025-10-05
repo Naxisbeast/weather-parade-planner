@@ -1,3 +1,5 @@
+import { cacheService } from './cacheService';
+
 export interface NASAWeatherParams {
   latitude: number;
   longitude: number;
@@ -48,6 +50,19 @@ const DEFAULT_PARAMETERS = ['T2M', 'PRECTOTCORR', 'WS2M'];
 export const fetchNASAWeatherData = async (
   params: NASAWeatherParams
 ): Promise<NASAWeatherResponse> => {
+  // Generate cache key
+  const cacheKey = cacheService.generateKey({
+    type: 'nasa-weather',
+    ...params
+  });
+
+  // Check cache first
+  const cached = cacheService.get<NASAWeatherResponse>(cacheKey);
+  if (cached) {
+    console.log('Using cached NASA weather data');
+    return cached;
+  }
+
   const {
     latitude,
     longitude,
@@ -64,7 +79,12 @@ export const fetchNASAWeatherData = async (
     throw new Error(`NASA API request failed: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  
+  // Cache the result for 5 minutes
+  cacheService.set(cacheKey, data, 5 * 60 * 1000);
+
+  return data;
 };
 
 export const processWeatherData = (nasaData: NASAWeatherResponse): WeatherStats => {
@@ -111,42 +131,53 @@ export const processWeatherData = (nasaData: NASAWeatherResponse): WeatherStats 
 
 export const calculateRiskLevel = (stats: WeatherStats): RiskLevel => {
   const reasons: string[] = [];
+  
+  // Use avgRainfall instead of maxRainfall for more accurate assessment
+  const avgRainfall = stats.avgRainfall;
+  const avgTemperature = stats.avgTemperature;
 
-  if (stats.maxRainfall > 20) {
-    reasons.push(`Heavy rainfall detected (${stats.maxRainfall}mm)`);
+  // High risk conditions
+  if (avgRainfall > 20 || avgTemperature < 5 || avgTemperature > 35) {
+    if (avgRainfall > 20) {
+      reasons.push(`High average rainfall (${avgRainfall}mm/day)`);
+    }
+    if (avgTemperature > 35) {
+      reasons.push(`Extreme heat (${avgTemperature}°C average)`);
+    }
+    if (avgTemperature < 5) {
+      reasons.push(`Extreme cold (${avgTemperature}°C average)`);
+    }
+    if (stats.maxWindspeed > 20) {
+      reasons.push(`Dangerous winds (${stats.maxWindspeed} m/s max)`);
+    }
+    return { level: 'High', reasons };
   }
 
+  // Moderate risk conditions
+  if (avgRainfall > 10) {
+    reasons.push(`Moderate rainfall (${avgRainfall}mm/day average)`);
+  }
+  
   if (stats.maxWindspeed > 15) {
     reasons.push(`Strong winds detected (${stats.maxWindspeed} m/s)`);
   }
 
-  if (stats.maxTemperature > 35) {
-    reasons.push(`Extreme heat detected (${stats.maxTemperature}°C)`);
+  if (stats.maxTemperature > 32 && stats.maxTemperature <= 35) {
+    reasons.push(`High temperatures (${stats.maxTemperature}°C max)`);
   }
 
-  if (stats.minTemperature < 5) {
-    reasons.push(`Extreme cold detected (${stats.minTemperature}°C)`);
-  }
-
-  if (reasons.length > 0) {
-    return { level: 'High', reasons };
-  }
-
-  if (stats.maxRainfall > 10) {
-    reasons.push(`Moderate rainfall (${stats.maxRainfall}mm)`);
-  }
-
-  if (stats.maxWindspeed > 8) {
-    reasons.push(`Moderate winds (${stats.maxWindspeed} m/s)`);
+  if (stats.minTemperature < 10 && stats.minTemperature >= 5) {
+    reasons.push(`Cold conditions (${stats.minTemperature}°C min)`);
   }
 
   if (reasons.length > 0) {
     return { level: 'Moderate', reasons };
   }
 
+  // Low risk - favorable conditions
   return {
     level: 'Low',
-    reasons: ['All weather conditions within normal ranges']
+    reasons: ['All weather conditions within normal ranges. Favorable for outdoor activities.']
   };
 };
 
