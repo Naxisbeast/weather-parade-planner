@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import About from "./pages/About";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
+import CalendarPage from "./pages/CalendarPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/about" element={<About />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/profile" element={<Profile />} />

@@ -50,6 +50,15 @@ const Navigation = () => {
                 Dashboard
               </Link>
               <Link
+                to="/calendar"
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  location.pathname === "/calendar" ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                Calendar
+              </Link>
+              <Link
                 to="/about"
                 className={cn(
                   "text-sm font-medium transition-colors hover:text-primary",
