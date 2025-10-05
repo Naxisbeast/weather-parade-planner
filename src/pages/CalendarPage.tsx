@@ -7,11 +7,18 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { 
   Cloud, CloudRain, Sun, Wind, Droplets, Gauge, Calendar as CalendarIcon,
-  MapPin, Loader2, TrendingUp, AlertTriangle, CheckCircle2
+  MapPin, Loader2, TrendingUp, AlertTriangle, CheckCircle2, Bell, BellOff
 } from "lucide-react";
 import { searchLocationByName, parseCoordinates, getLocationDisplay, GeoLocation } from "@/services/geocodingService";
 import { fetchOpenWeatherData, processDailyWeatherData, DailyWeatherPrediction, getWeatherColor } from "@/services/openWeatherService";
 import { getThirtyDayForecast, DailyPrediction, ThirtyDayForecastResponse, getRiskLevelColor, getRiskLevelBadgeColor } from "@/services/rainfallPredictionService";
+import { 
+  checkNotificationPermission, 
+  requestNotificationPermission, 
+  sendTestNotification,
+  scheduleDailyNotifications,
+  registerServiceWorker
+} from "@/services/notificationService";
 
 type ValuePiece = Date | null;
 type Value = ValuePiece | [ValuePiece, ValuePiece];
@@ -27,6 +34,7 @@ const CalendarPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiServiceAvailable, setAiServiceAvailable] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
   // Check if AI service is available
   useEffect(() => {
@@ -41,6 +49,15 @@ const CalendarPage = () => {
       }
     };
     checkAiService();
+  }, []);
+
+  // Check notification permission on mount
+  useEffect(() => {
+    const permission = checkNotificationPermission();
+    setNotificationsEnabled(permission.granted);
+    
+    // Register service worker
+    registerServiceWorker();
   }, []);
 
   const handleLocationSearch = async (input: string) => {
@@ -113,6 +130,28 @@ const CalendarPage = () => {
     }
   };
 
+  const handleEnableNotifications = async () => {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      setNotificationsEnabled(true);
+      const success = await sendTestNotification();
+      if (success) {
+        toast.success("Notifications enabled! You'll receive daily weather updates.");
+      }
+      
+      // Schedule notifications for available predictions
+      const allPredictions = [...weatherData, ...aiPredictions];
+      if (allPredictions.length > 0) {
+        const scheduled = await scheduleDailyNotifications(allPredictions);
+        if (scheduled > 0) {
+          toast.success(`Scheduled ${scheduled} daily notifications`);
+        }
+      }
+    } else {
+      toast.error("Notification permission denied. Please enable in browser settings.");
+    }
+  };
+
   const getSelectedDateData = (): DailyWeatherPrediction | DailyPrediction | null => {
     const dateString = selectedDate.toISOString().split('T')[0];
     
@@ -160,6 +199,31 @@ const CalendarPage = () => {
           <p className="text-muted-foreground">
             View color-coded weather predictions and AI-powered rainfall forecasts
           </p>
+          
+          {/* Notification Toggle */}
+          <div className="mt-4">
+            <Button
+              onClick={handleEnableNotifications}
+              disabled={notificationsEnabled}
+              variant={notificationsEnabled ? "outline" : "default"}
+              className={notificationsEnabled ? "bg-green-50 border-green-300" : ""}
+            >
+              {notificationsEnabled ? (
+                <>
+                  <Bell className="mr-2 h-4 w-4 text-green-600" />
+                  <span className="text-green-600">Notifications Enabled</span>
+                </>
+              ) : (
+                <>
+                  <BellOff className="mr-2 h-4 w-4" />
+                  Enable Daily Notifications
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Get weather updates every morning at 7 AM
+            </p>
+          </div>
         </div>
 
         {/* Location Search */}
