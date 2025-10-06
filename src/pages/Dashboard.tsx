@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Search, MapPin, Loader as Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchNASAWeatherData,
   processWeatherData,
@@ -36,6 +38,7 @@ import RecommendationsPanel from "@/components/RecommendationsPanel";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, TooltipProps } from "recharts";
 
 const Dashboard = () => {
+  const { user, isAuthenticated } = useAuth();
   const [locationInput, setLocationInput] = useState("");
   const [searchResults, setSearchResults] = useState<GeoLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeoLocation | null>(null);
@@ -133,6 +136,30 @@ const Dashboard = () => {
 
       const personalizedRecs = generatePersonalizedRecommendations(stats);
       setRecommendations(personalizedRecs);
+
+      // Save to history if authenticated
+      if (isAuthenticated && user) {
+        try {
+          await supabase.from('weather_searches').insert({
+            user_id: user.id,
+            location_name: selectedLocation.name,
+            latitude: selectedLocation.latitude,
+            longitude: selectedLocation.longitude,
+            start_date: startDate,
+            end_date: endDate,
+            avg_temperature: stats.avgTemperature,
+            max_temperature: stats.maxTemperature,
+            min_temperature: stats.minTemperature,
+            avg_rainfall: stats.avgRainfall,
+            max_rainfall: stats.maxRainfall,
+            avg_windspeed: stats.avgWindspeed,
+            max_windspeed: stats.maxWindspeed,
+            risk_level: risk.level
+          });
+        } catch (error) {
+          console.error('Error saving search:', error);
+        }
+      }
 
       toast.success("Weather data fetched successfully!");
     } catch (error) {
@@ -319,10 +346,10 @@ const Dashboard = () => {
 
   const getRiskColor = (level: string) => {
     switch (level) {
-      case 'High': return 'text-red-600 bg-red-50 border-red-200';
-      case 'Moderate': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'Low': return 'text-green-600 bg-green-50 border-green-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'High': return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800';
+      case 'Moderate': return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800';
+      case 'Low': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800';
+      default: return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800';
     }
   };
 
@@ -565,7 +592,7 @@ const Dashboard = () => {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-red-50 to-orange-50 hover:shadow-xl transition-all hover:scale-105">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <span className="text-2xl">🌡️</span>
@@ -590,7 +617,7 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-blue-50 to-cyan-50 hover:shadow-xl transition-all hover:scale-105">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <span className="text-2xl">💧</span>
@@ -615,7 +642,7 @@ const Dashboard = () => {
                     </CardContent>
                   </Card>
 
-                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-orange-50 to-amber-50 hover:shadow-xl transition-all hover:scale-105">
+                  <Card className="shadow-lg rounded-2xl border-none bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 hover:shadow-xl transition-all hover:scale-105">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
                         <span className="text-2xl">💨</span>
@@ -924,10 +951,10 @@ const Dashboard = () => {
 
             {fastapiForecast && (
               <>
-                <Card className="shadow-lg rounded-2xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 hover:shadow-xl transition-shadow">
+                <Card className="shadow-lg rounded-2xl border-2 border-purple-300 dark:border-purple-700 bg-gradient-to-br from-purple-50 via-indigo-50 to-purple-50 dark:from-purple-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 hover:shadow-xl transition-shadow">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-purple-600" />
+                      <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                       AI Weather Forecast ({fastapiForecast.model_used})
                     </CardTitle>
                   </CardHeader>

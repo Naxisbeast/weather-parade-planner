@@ -14,7 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          city: string | null
+          country: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          organization_name: string | null
+          updated_at: string | null
+          user_id: string
+          user_type: string | null
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          organization_name?: string | null
+          updated_at?: string | null
+          user_id: string
+          user_type?: string | null
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          organization_name?: string | null
+          updated_at?: string | null
+          user_id?: string
+          user_type?: string | null
+        }
+        Relationships: []
+      }
+      user_favorites: {
+        Row: {
+          created_at: string | null
+          id: string
+          latitude: number
+          location_name: string
+          longitude: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          latitude: number
+          location_name: string
+          longitude: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          latitude?: number
+          location_name?: string
+          longitude?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          preferred_activities: string[] | null
+          temperature_unit: string | null
+          updated_at: string | null
+          user_id: string
+          weather_sensitivities: string[] | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          preferred_activities?: string[] | null
+          temperature_unit?: string | null
+          updated_at?: string | null
+          user_id: string
+          weather_sensitivities?: string[] | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          preferred_activities?: string[] | null
+          temperature_unit?: string | null
+          updated_at?: string | null
+          user_id?: string
+          weather_sensitivities?: string[] | null
+        }
+        Relationships: []
+      }
+      weather_searches: {
+        Row: {
+          avg_rainfall: number | null
+          avg_temperature: number | null
+          avg_windspeed: number | null
+          created_at: string | null
+          end_date: string
+          id: string
+          latitude: number
+          location_name: string
+          longitude: number
+          max_rainfall: number | null
+          max_temperature: number | null
+          max_windspeed: number | null
+          min_temperature: number | null
+          risk_level: string | null
+          start_date: string
+          user_id: string
+        }
+        Insert: {
+          avg_rainfall?: number | null
+          avg_temperature?: number | null
+          avg_windspeed?: number | null
+          created_at?: string | null
+          end_date: string
+          id?: string
+          latitude: number
+          location_name: string
+          longitude: number
+          max_rainfall?: number | null
+          max_temperature?: number | null
+          max_windspeed?: number | null
+          min_temperature?: number | null
+          risk_level?: string | null
+          start_date: string
+          user_id: string
+        }
+        Update: {
+          avg_rainfall?: number | null
+          avg_temperature?: number | null
+          avg_windspeed?: number | null
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          latitude?: number
+          location_name?: string
+          longitude?: number
+          max_rainfall?: number | null
+          max_temperature?: number | null
+          max_windspeed?: number | null
+          min_temperature?: number | null
+          risk_level?: string | null
+          start_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

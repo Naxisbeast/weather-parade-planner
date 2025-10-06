@@ -188,12 +188,12 @@ const CalendarPage = () => {
   const isOpenWeatherData = selectedDateData && 'icon' in selectedDateData;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-950 dark:via-blue-950/20 dark:to-purple-950/20">
       <Navigation />
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent mb-2">
             30-Day Weather Calendar
           </h1>
           <p className="text-muted-foreground">
@@ -392,8 +392,8 @@ const CalendarPage = () => {
 
                     {/* Weather Details Grid */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-gradient-to-br from-orange-50 to-red-50 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <div className="p-4 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                           <Sun className="h-4 w-4" />
                           Temperature
                         </div>
@@ -407,8 +407,8 @@ const CalendarPage = () => {
                         )}
                       </div>
 
-                      <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                           <Droplets className="h-4 w-4" />
                           Humidity
                         </div>
@@ -417,8 +417,8 @@ const CalendarPage = () => {
                         </div>
                       </div>
 
-                      <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                           <Gauge className="h-4 w-4" />
                           Pressure
                         </div>
@@ -427,8 +427,8 @@ const CalendarPage = () => {
                         </div>
                       </div>
 
-                      <div className="p-4 bg-gradient-to-br from-green-50 to-teal-50 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                      <div className="p-4 bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-950/30 dark:to-teal-950/30 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                           <Wind className="h-4 w-4" />
                           Wind Speed
                         </div>
@@ -441,10 +441,10 @@ const CalendarPage = () => {
                     </div>
 
                     {/* Rainfall Information */}
-                    <div className="p-4 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl shadow-md">
+                    <div className="p-4 bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-950/40 dark:to-indigo-950/40 rounded-xl shadow-md">
                       <div className="flex items-center gap-2 mb-3">
-                        <CloudRain className="h-5 w-5 text-blue-700" />
-                        <h3 className="font-semibold text-blue-900">Rainfall Prediction</h3>
+                        <CloudRain className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                        <h3 className="font-semibold text-blue-900 dark:text-blue-200">Rainfall Prediction</h3>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between">
