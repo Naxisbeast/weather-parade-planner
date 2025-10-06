@@ -452,14 +452,14 @@ const CalendarPage = () => {
                           <span className="font-bold text-blue-900">
                             {isOpenWeatherData 
                               ? `${selectedDateData.precipProbability}%`
-                              : `${Math.round(selectedDateData.rainfall_probability * 100)}%`}
+                              : `${Math.round((selectedDateData as DailyPrediction).rainfall_probability * 100)}%`}
                           </span>
                         </div>
                         {!isOpenWeatherData && (
                           <div className="flex justify-between">
                             <span className="text-sm text-blue-800">Predicted Amount:</span>
                             <span className="font-bold text-blue-900">
-                              {selectedDateData.predicted_rainfall_mm} mm
+                              {(selectedDateData as DailyPrediction).predicted_rainfall_mm} mm
                             </span>
                           </div>
                         )}
@@ -468,7 +468,7 @@ const CalendarPage = () => {
                           <span className="font-medium text-blue-900">
                             {isOpenWeatherData 
                               ? selectedDateData.description 
-                              : selectedDateData.weather_description}
+                              : (selectedDateData as DailyPrediction).weather_description}
                           </span>
                         </div>
                       </div>
