@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Download, Search, MapPin, Loader as Loader2, Sparkles } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   fetchNASAWeatherData,
@@ -33,12 +32,10 @@ import {
   exportFastAPIForecastToJSON,
   FastAPIForecastResponse
 } from "@/services/fastapiForecastService";
-import { supabase, UserProfile, UserPreferences } from "@/lib/supabase";
 import RecommendationsPanel from "@/components/RecommendationsPanel";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, TooltipProps } from "recharts";
 
 const Dashboard = () => {
-  const { isAuthenticated, user } = useAuth();
   const [locationInput, setLocationInput] = useState("");
   const [searchResults, setSearchResults] = useState<GeoLocation[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<GeoLocation | null>(null);
@@ -50,8 +47,6 @@ const Dashboard = () => {
   const [riskLevel, setRiskLevel] = useState<RiskLevel | null>(null);
   const [recommendations, setRecommendations] = useState<PersonalizedRecommendations | null>(null);
   const [nearbyPlaces, setNearbyPlaces] = useState<PlaceResult[]>([]);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
   const [isForecastLoading, setIsForecastLoading] = useState(false);
   const [fastapiForecast, setFastapiForecast] = useState<FastAPIForecastResponse | null>(null);
@@ -66,13 +61,9 @@ const Dashboard = () => {
     setEndDate(today.toISOString().split('T')[0]);
     setStartDate(tenDaysAgo.toISOString().split('T')[0]);
 
-    if (isAuthenticated) {
-      loadUserProfile();
-    }
-
     // Check if FastAPI service is available
     checkFastAPIHealth().then(setFastapiServiceAvailable);
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
     const delaySearch = setTimeout(async () => {
@@ -96,58 +87,10 @@ const Dashboard = () => {
     return () => clearTimeout(delaySearch);
   }, [locationInput]);
 
-  const loadUserProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const { data: preferences } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      setUserProfile(profile);
-      setUserPreferences(preferences);
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-    }
-  };
-
   const handleLocationSelect = (location: GeoLocation) => {
     setSelectedLocation(location);
     setLocationInput(getLocationDisplay(location));
     setSearchResults([]);
-  };
-
-  const saveWeatherSearch = async (stats: WeatherStats, location: GeoLocation, risk: RiskLevel) => {
-    if (!isAuthenticated || !user) return;
-
-    try {
-      await supabase.from('weather_searches').insert({
-        user_id: user.id,
-        location_name: location.name,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        start_date: startDate,
-        end_date: endDate,
-        avg_temperature: stats.avgTemperature,
-        max_temperature: stats.maxTemperature,
-        min_temperature: stats.minTemperature,
-        avg_rainfall: stats.avgRainfall,
-        max_rainfall: stats.maxRainfall,
-        avg_windspeed: stats.avgWindspeed,
-        max_windspeed: stats.maxWindspeed,
-        risk_level: risk.level
-      });
-    } catch (error) {
-      console.error('Error saving weather search:', error);
-    }
   };
 
   const handleAnalyze = async () => {
@@ -188,25 +131,8 @@ const Dashboard = () => {
       setWeatherStats(stats);
       setRiskLevel(risk);
 
-      if (isAuthenticated) {
-        await saveWeatherSearch(stats, selectedLocation, risk);
-      }
-
-      const personalizedRecs = generatePersonalizedRecommendations(
-        stats,
-        userProfile || undefined,
-        userPreferences || undefined
-      );
+      const personalizedRecs = generatePersonalizedRecommendations(stats);
       setRecommendations(personalizedRecs);
-
-      if (userPreferences && userPreferences.preferred_activities.length > 0 && userProfile?.user_type === 'individual') {
-        const places = await searchNearbyPlaces(
-          selectedLocation.latitude,
-          selectedLocation.longitude,
-          userPreferences.preferred_activities[0]
-        );
-        setNearbyPlaces(places);
-      }
 
       toast.success("Weather data fetched successfully!");
     } catch (error) {
@@ -412,14 +338,6 @@ const Dashboard = () => {
           <p className="text-muted-foreground">
             Real-time weather data with personalized recommendations
           </p>
-          {!isAuthenticated && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <Sparkles className="inline h-4 w-4 mr-1" />
-                Sign in and complete your profile to get personalized clothing recommendations, activity suggestions, and safety tips!
-              </p>
-            </div>
-          )}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -723,7 +641,7 @@ const Dashboard = () => {
                   <RecommendationsPanel
                     recommendations={recommendations}
                     nearbyPlaces={nearbyPlaces}
-                    isIndividual={userProfile?.user_type === 'individual'}
+                    isIndividual={true}
                   />
                 )}
 

@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import Navigation from "@/components/Navigation";
 import StarryBackground from "@/components/StarryBackground";
 import { Button } from "@/components/ui/button";
@@ -7,8 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CloudRain, TrendingUp, Download, MapPin, Sparkles, Zap, Shield } from "lucide-react";
 
 const Index = () => {
-  const { isAuthenticated } = useAuth();
-
   return (
     <div className="min-h-screen relative overflow-hidden">
       <StarryBackground />
@@ -33,28 +30,12 @@ const Index = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in-delay">
-            {isAuthenticated ? (
-              <Link to="/dashboard">
-                <Button size="lg" className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                  <Zap className="mr-2 h-5 w-5" />
-                  Go to Dashboard
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link to="/auth">
-                  <Button size="lg" className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <Sparkles className="mr-2 h-5 w-5" />
-                    Get Started Free
-                  </Button>
-                </Link>
-                <Link to="/dashboard">
-                  <Button size="lg" variant="outline" className="border-2 border-sky-600 dark:border-sky-400 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 backdrop-blur-sm transition-all duration-300">
-                    Try Demo
-                  </Button>
-                </Link>
-              </>
-            )}
+            <Link to="/dashboard">
+              <Button size="lg" className="bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <Zap className="mr-2 h-5 w-5" />
+                Get Started
+              </Button>
+            </Link>
           </div>
         </div>
 

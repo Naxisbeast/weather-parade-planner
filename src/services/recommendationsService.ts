@@ -1,5 +1,4 @@
 import { WeatherStats } from './nasaWeatherService';
-import { UserProfile, UserPreferences } from '@/lib/supabase';
 
 export interface ClothingRecommendation {
   category: string;
@@ -351,25 +350,16 @@ export const generateOrganizationalAdvice = (
 };
 
 export const generatePersonalizedRecommendations = (
-  stats: WeatherStats,
-  profile?: UserProfile,
-  preferences?: UserPreferences
+  stats: WeatherStats
 ): PersonalizedRecommendations => {
-  const sensitivities = preferences?.weather_sensitivities || [];
-  const activities = preferences?.preferred_activities || [];
+  const sensitivities: string[] = [];
+  const activities: string[] = [];
 
   const recommendations: PersonalizedRecommendations = {
-    safetyTips: generateSafetyTips(stats, sensitivities)
+    safetyTips: generateSafetyTips(stats, sensitivities),
+    clothing: generateClothingRecommendations(stats, sensitivities),
+    activities: generateActivityRecommendations(stats, activities)
   };
-
-  if (profile?.user_type === 'individual') {
-    recommendations.clothing = generateClothingRecommendations(stats, sensitivities);
-    if (activities.length > 0) {
-      recommendations.activities = generateActivityRecommendations(stats, activities);
-    }
-  } else if (profile?.user_type === 'organization') {
-    recommendations.organizationalAdvice = generateOrganizationalAdvice(stats);
-  }
 
   return recommendations;
 };

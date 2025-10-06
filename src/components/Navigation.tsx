@@ -1,20 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { Cloud, Moon, Sun, LogOut, User as UserIcon } from "lucide-react";
+import { Cloud, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
 const Navigation = () => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout, isAuthenticated } = useAuth();
-
-  const handleLogout = async () => {
-    await logout();
-    toast.success("Logged out successfully");
-  };
 
   return (
     <nav className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
@@ -82,31 +74,6 @@ const Navigation = () => {
                   <Sun className="h-4 w-4" />
                 )}
               </Button>
-
-              {isAuthenticated ? (
-                <>
-                  <Link to="/profile">
-                    <Button variant="ghost" size="sm" className="gap-2">
-                      <UserIcon className="h-4 w-4" />
-                      Profile
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleLogout}
-                    className="h-9 w-9"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </>
-              ) : (
-                <Link to="/auth">
-                  <Button variant="default" size="sm">
-                    Login
-                  </Button>
-                </Link>
-              )}
             </div>
           </div>
         </div>
