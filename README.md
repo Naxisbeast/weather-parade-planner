@@ -6,7 +6,6 @@ A comprehensive weather analysis and prediction application with AI-powered fore
 
 We've added a powerful new calendar feature that displays 30-day weather predictions with AI-based rainfall forecasts!
 
-![Calendar Page](https://github.com/user-attachments/assets/cc1dce87-66bd-4233-b77d-73466f059592)
 
 ### Key Features:
 - 📅 **Interactive Calendar** - Color-coded weather predictions for 30 days
